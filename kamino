@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+KAMINO_ROOT="${KAMINO_ROOT:-$HOME}"
+
+_kamino_fail() {
+  echo "error: ${1}"
+  _kamino_usage
+  exit 1
+}
+
+_kamino_usage() {
+  echo 'usage:'
+  echo 'kamino clone <url>'
+  echo '  clones <url> to $KAMINO_ROOT/<forge>/<username>/<repo>'
+  echo 'kamino init <forge> <username> <repo>'
+  echo '  creates directory $KAMINO_ROOT/<forge>/<username>/<repo> and initalizes'
+  echo '  git repository with the matching remote set to "origin"'
+  echo 'kamino help'
+  echo '  display this message'
+}
+
+_kamino_clone() {
+  if [[ $# -ne 1 ]]; then
+    _kamino_fail "wrong number of arguments"
+  fi
+
+  git_url=${1}
+
+  scp_like_re='^([a-z]+)@([-a-z0-9.]+):([[:alnum:]-]+)/([-[:alnum:]_.]+)\.git$'
+  https_re='^https://([-a-z0-9.]+)/([[:alnum:]-]+)/([-[:alnum:]_.]+)\.git$'
+
+  if [[ $git_url =~ $scp_like_re ]]; then
+    forge="${BASH_REMATCH[2]}"
+    username="${BASH_REMATCH[3]}"
+    repo="${BASH_REMATCH[4]}"
+  elif [[ $git_url =~ $https_re ]]; then
+    forge="${BASH_REMATCH[1]}"
+    username="${BASH_REMATCH[2]}"
+    repo="${BASH_REMATCH[3]}"
+  else
+    echo "url format not recognized"
+    exit 1
+  fi
+
+  repo_dir="$KAMINO_ROOT/${forge}/${username}/${repo}"
+
+  mkdir -p "${repo_dir}"
+
+  git clone "${git_url}" "${repo_dir}"
+}
+
+_kamino_init() {
+  if [[ $# -ne 3 ]]; then
+    _kamino_fail "wrong number of arguments"
+  fi
+
+  forge="${1}"
+  username="${2}"
+  repo="${3}"
+  
+  repo_dir="$KAMINO_ROOT/${forge}/${username}/${repo}"
+
+  mkdir -p "${repo_dir}"
+  pushd "${repo_dir}"
+
+  git init
+  git remote add origin "git@${forge}:${username}/${repo}.git"
+}
+
+if [[ $# -eq 0 ]]; then
+  _kamino_fail "command required"
+fi
+
+kamino_command="${1}"; shift
+
+case $kamino_command in
+  "clone")
+    _kamino_clone $@
+    ;;
+  "init")
+    _kamino_init $@
+    ;;
+  "help")
+    _kamino_usage
+    ;;
+  *)
+    _kamino_fail "unrecognized commend ${kamino_command}"
+    ;;
+esac
